@@ -150,6 +150,7 @@ static void add_word(MYSQL_FTPARSER_PARAM *param, char *word, size_t len)
   MYSQL_FTPARSER_BOOLEAN_INFO bool_info=
     { FT_TOKEN_WORD, 0, 0, 0, 0, ' ', 0 };
 
+  if (param->mode == MYSQL_FTPARSER_FULL_BOOLEAN_INFO) bool_info.yesno = 1;
   param->mysql_add_word(param, word, len, &bool_info);
 }
 
@@ -172,20 +173,31 @@ static int simple_parser_parse(MYSQL_FTPARSER_PARAM *param)
   char *end, *start, *docend= param->doc + param->length;
 
   number_of_calls++;
+  param->flags = MYSQL_FTFLAGS_NEED_COPY;
 
-  for (end= start= param->doc;; end++)
+  for (end= start= param->doc;;)
   {
-    if (end == docend)
-    {
-      if (end > start)
-        add_word(param, start, end - start);
-      break;
+    if (end == docend) break;
+    if (*end <= 0) {
+      end = end + 2;
+    } else {
+      end = end + 1;
     }
-    else if (isspace(*end))
-    {
-      if (end > start)
-        add_word(param, start, end - start);
-      start= end + 1;
+
+    if ((*start > 0)  && (end - start < 2)) {
+      continue;
+    }
+    if ((*start < 0)  && (end - start < 3)) {
+      continue;
+    }
+    if (end > docend) break;
+
+    add_word(param, start, end - start);
+
+    if (*start <= 0) {
+      start = start + 2;
+    } else {
+      start = start + 1;
     }
   }
   return(0);
@@ -210,8 +222,8 @@ static struct st_mysql_ftparser simple_parser_descriptor=
 
 static struct st_mysql_show_var simple_status[]=
 {
-  {"static",     (char *)"just a static text",     SHOW_CHAR},
-  {"called",     (char *)&number_of_calls, SHOW_LONG},
+  {"simple_parser_static",     (char *)"just a static text",     SHOW_CHAR},
+  {"simple_parser_called",     (char *)&number_of_calls, SHOW_LONG},
   {0,0,0}
 };
 
